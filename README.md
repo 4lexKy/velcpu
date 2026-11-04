@@ -10,6 +10,8 @@ Quedan ideas para añadir y mejorar detalles.
 ## Instalación
 
 Al ser un script de bash no necesita instalación.
+Sí tiene dependencias de_
+- cpupower (Debian/Ubuntu)
 
 ## Uso
 *\*Solo se puede usar una opción por cada ejecución, son excluyentes.*
