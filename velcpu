@@ -1,0 +1,327 @@
+#!/bin/bash
+
+# Copyright 2026 Tu Nombre y colaboradores
+# SPDX-License-Identifier: GPL-2.0-only
+# Este programa es software libre: puedes redistribuirlo y/o modificarlo bajo los términos
+# de la Licencia Pública General GNU como publicada por la Free Software Foundation,
+# ya sea la versión 2 de la Licencia, o (a tu elección) cualquier versión posterior.
+
+#Modificador de la velocidad del procesador.
+# 10.08.2026
+
+#Historial
+# 10.08.26 - Inici, fet op -l i -c
+# 12.08.26 - Fet -d, traduit i millorat help, millorat visual -c
+# 12.08.26 - Inclós desconexió de fils al passar de 90graus.
+# 13.08.26 - Ctrl+c capturat, restaura fils i freqüència
+# 13.08.26 - Fet funció reset per a resetejar automaticament els fils
+# 13.08.26 - Convertides totes les opcions en funcions
+# 13.08.26 - Creada la opció -f, tant en Khz com en 10e5 Hz
+# 13.08.26 - Corregit la // en la ruta en segón plà.
+# 14.08.26 - Inclosos colors, solucionat fallo inter libreríes
+# 14.08.26 - Inclosos permisos de sudo etern
+# 14.08.26 - Solucionats errors de contraseña amb op -r
+# 14.08.26 - Debugging intenso. Las funcionalidades funcionan bien. (USABLE)
+
+#Falta
+#Millorar visual rollo panel de control?
+#molaría op -t para apagar hilos a voluntad
+#Comprobar entradas malas
+
+    #Configuació del programa (variables)
+refresco=0.5 #Segundos en actualizar velocidad con -c i -d
+
+    #Variables internas, no tocar
+nprocs=$(nproc)
+contraObtenida=0
+hilosApagados=0
+#Colores
+    colorBase="\e[1;34;47m"
+   colorFallo="\e[1;37;41m"
+colorCorrecto="\e[1;37;42m"
+  colorTitulo="\e[1;33;44m"
+ colorOpcions="\e[1;37m"
+colorOriginal="\e[0m"
+
+
+    #FUNCIONES
+help() { #Mostra la informació inicial d'us
+    echo
+    echo -e "\t\t${colorTitulo}Modificador de la velocitat del proccessador${colorOriginal}"
+    echo -e "\t${colorOpcions}-l$colorOriginal  Llimita el maxim de velocitat per percentatge"
+    echo -e "\t${colorOpcions}-f$colorOriginal  llimita el maxim de velocitat per Freqüencia"
+    echo -e "\t${colorOpcions}-c$colorOriginal  Curva automàtica per temperatura visual."
+    echo -e "\t${colorOpcions}-d$colorOriginal  curva automàtica per temperatura Daemon."
+    echo -e "\t${colorOpcions}-dk$colorOriginal Mata (Kill) el procés en segón plà de \"-d\"."
+    echo -e "\t${colorOpcions}-r$colorOriginal  Reseteja fils, freqüència i mata segon plà."
+    echo
+    echo -e "\tSegon plà: (el acabats en '-d')"
+    pgrep -af $(basename "$0")
+    echo
+    echo -e "\tFrequències limit   $MIN_FREQ - $MAX_FREQ Hz"
+    echo -e "\tFrequències actuals ??? - ??? Hz"
+    echo
+    echo -e "\t$(basename "$0")             >> Informació"
+    echo -e "\t$(basename "$0") -l 3        >> Límit al 30%"
+    echo -e "\t$(basename "$0") -l 30       >> Límit al 30%"
+    echo -e "\t$(basename "$0") -f 14       >> Límit a 1.4GHz"
+    echo -e "\t$(basename "$0") -f 1400000  >> Límit a 1.4GHz"
+    echo -e "\t$(basename "$0") -c          >> Regulació automatica"
+    echo -e "\t$(basename "$0") -d          >> Reg. Autom. segon plà"
+    echo -e "\t$(basename "$0") -dk         >> Mata segon plà"
+    echo -e "\t$(basename "$0") -r          >> Deixa frec de fabrica"
+    echo
+}
+opcioL() { #Llimita el maxim de velocitat per percentatge
+ #Si faltan argumentos
+    if (( $# != 2 )); then
+        echo -e "\n\tFalten arguments\n"
+        exit
+    fi
+
+    #Si la frecuencia va de 0 a 9
+    if (( $2 < 10 )); then
+        let percentatge="$2*10"
+    else
+        percentatge=$2
+    fi
+
+    #Càlcul de la frequència
+    echo
+    echo "Limitant la frecuencia de la cpu al $percentatge%"
+    let frec="((($MAX_FREQ - $MIN_FREQ) / 100) * $percentatge) + $MIN_FREQ"
+
+    #Canvi de frequència
+    echo $contra | sudo -k -S cpupower frequency-set --min $MIN_FREQ --max $frec >/dev/null 2>&1
+
+    #Informa de valors actuals
+    echo -e "\n\tCPU al $percentatge% => max ${frec}kHz\n"
+}
+opcioF() {
+    #Si faltan argumentos
+    if (( $# != 2 )); then
+        echo -e "\n\tFalten arguments\n"
+        exit
+    fi
+
+    #Si la frecuencia pasa els llimits avisa
+    #queremos una xor, que será  ( A or B ) xor ( a or b )
+    # como no hay xor, AoB and aob ( porque no me importa el caso 0 and 0
+    if (( ($2 < $MIN_FREQ | $2 > $MAX_FREQ) & ( ($2 < $(let aux="$MIN_FREQ/100000"; echo $aux)) | ($2 > $(let aux="$MAX_FREQ/100000"; echo $aux)) ) )); then
+        echo "Valor >$2<"
+        echo "Freqüència fora de rang ($MIN_FREQ - $MAX_FREQ kHz)"
+        echo "Freqüència fora de rang ($(let aux="$MIN_FREQ/100000"; echo $aux) - $(let aux="$MAX_FREQ/100000"; echo $aux) kHz)"
+    else
+        #a partir de aquí estamos seguro en rango
+        if (( $2 < 10000 )); then
+            #Frecuencia en centenas en 10e5 hz
+            let frec="$2*100000"
+        else
+            frec=$2
+        fi
+
+        #Canvi de frequència
+        echo "La nueva >$frec<"
+        echo $contra | sudo -k -S cpupower frequency-set --min $MIN_FREQ --max $frec >/dev/null 2>&1
+
+        #Càlcul del percentatge
+        let percentatge="(($frec-$MIN_FREQ)*100)/($MAX_FREQ-$MIN_FREQ)"
+
+        #Informa de valors actuals
+        echo -e "\n\tCPU a max ${frec}kHz => $percentatge%\n"
+    fi
+
+}
+opcioC() { #Curva automàtica per temperatura visual
+    #Empieza ejecucion
+    echo
+    echo -e "\t${colorTitulo}Freqüencia d'actualizació $refresco segons.${colorOriginal}"
+    echo
+    while true; do
+
+        #Llegim les temperatures desde el sistema
+        temperatures=$( cat /sys/class/hwmon/hwmon*/temp*_input )
+
+        #Obtenint la temperatura més alta.
+        tempMesAlta=0
+        for temp in $temperatures; do
+            if (( $tempMesAlta < $temp )); then
+                tempMesAlta=$temp
+            fi
+        done
+        let tempMesAlta="$tempMesAlta/1000"
+
+            #Reacció a la temperatura. (llimit 85 graus)
+        #Equivalencias de reducción
+        temperatRef=(85 80 75  70) #Temperatura actual cpu
+        reduccioRef=( 0 50 70 100) #Percentatge que es reduirá la frec
+
+        #Calculo de reducción
+        indice=0
+        i=0
+        while [ $i -lt ${#temperatRef[@]} ]; do
+            if (( $tempMesAlta >= ${temperatRef[$i]} )); then
+                indice=$i
+                i=${#temperatRef[@]}
+            else
+                indice=$i
+                ((i++))
+            fi
+        done
+
+        #Aplicación de reducción
+        let frec="((($MAX_FREQ - $MIN_FREQ) / 100) * ${reduccioRef[$indice]}) + $MIN_FREQ"
+        echo $contra | sudo -k -S cpupower frequency-set --min $MIN_FREQ --max $frec >/dev/null 2>&1
+
+        #Desconecta núclis si pasa de 90 graus
+        if (( $tempMesAlta > 90 )); then
+            if [[ $hilosApagados == 0 ]]; then #Si no estan apagados los apago
+                echo -n "Desactivados > "
+                #Ha de ser al revés, pues al desactivar 1, hi ha 7, cambien el numeros
+                for (( i=((nprocs-1)); i>0; i--,i--)); do
+                    echo $contra | sudo -k -S bash -c "echo 0 | tee /sys/devices/system/cpu/cpu$i/online" >/dev/null 2>&1
+                    echo -n "$i "
+                done
+                echo "<"
+                #Marco que estan apagados los hilos
+                hilosApagados=1
+            fi
+        else
+            if [[ $hilosApagados == 1 ]]; then
+                #Activa tots els fils
+                echo $contra | sudo -k -S bash -c "echo 1 | tee /sys/devices/system/cpu/cpu*/online" >/dev/null 2>&1
+                #Marco que estan encendidos los hilos
+                hilosApagados=0
+            fi
+        fi
+
+        #Mostra info
+        echo -n "Temp $tempMesAltaºC -> Frec al ${reduccioRef[$indice]}% ($(let aux="$frec/1000"; echo $aux) MHz)"
+        barra=$(let aux="${reduccioRef[$indice]}/10"; echo $aux)
+        echo -e -n "\t"
+        echo -n "($indice)"
+        for((i=0; i<$barra; i++)); do
+            echo -n "=="
+        done
+        echo ">"
+
+        #Terminamos el tiempo en que vale la contraseña de sudo
+        sudo -k
+
+        #Pausa
+        sleep $refresco
+
+    done #while true
+}
+opcioD() { #curva automàtica per temperatura Daemon
+    #Llamamos a la funcion automatica
+    opcioC >/dev/null 2>&1 &
+    #Obtenemos su process id
+    PID=$!
+    #Desvinculamos el proceso para poder cerrarla terminal
+    disown $PID
+    #Saludo
+    echo
+    echo -e "\tProcés en segon plà actiu. PID=$PID"
+    echo
+}
+opcioDK() { #Mata (Kill) el procés en segón plà de \"-d\"
+    echo
+    echo -e "\tProcés en segon plà detingut"
+    echo
+    #Como se cierra a sí mismo, lo ejecuto lo último.
+    pkill -f "$(basename $0) -d"
+}
+opcioR() { #Reseteja fils, freqüència
+    #Canvi de frequència
+    echo $contra | sudo -k -S cpupower frequency-set --min $MIN_FREQ --max $MAX_FREQ >/dev/null 2>&1
+    echo "Freqüència resetejada ($MIN_FREQ - $MAX_FREQ MHz)"
+
+    #Activa tots els fils
+    echo $contra | sudo -k -S bash -c "echo 1 | tee /sys/devices/system/cpu/cpu*/online" >/dev/null 2>&1
+    echo "Fils activats (total: $(nproc)/$nprocs)"
+}
+trap ctrl_c INT TERM ERR
+ctrl_c() { #Captura el Ctrl+c i reseteja
+    echo
+    echo
+    echo -e "\tRestaurant estat:"
+    if (( $contraObtenida == 1 )); then
+        opcioR
+    fi
+    echo -e "\tEixint"
+    echo
+    exit
+}
+
+    #Obtenemos datos
+#Pedimos contraseña
+i=1
+while [ $i -ne 0 ]
+do
+    #Pedimos contraseña
+    fecha $colorBase
+    echo -n ">Introduix la contasenya de l'administrador($i): "
+    read -r -s contra
+    echo
+
+    #Comprobamos que la contraseña sea correcta (3.11.25)
+    echo $contra | sudo -k -S cat /etc/passwd &>/dev/null
+    if [ $? -ne 0 ]
+    then
+        #Si contraseña erronea
+        fecha $colorFallo
+        echo ">Intenta-ho de nou($i)...<"
+        ((i++))
+    else
+        #Si contraseña correcta
+        i=0
+        fecha $colorCorrecto
+        echo -e "\t>Contrasenya CORRECTA<"
+    fi
+done
+#Punto de control - contraseña obtenida
+contraObtenida=1
+#Obtenemos frecuencia máxima y mínima
+MAX_FREQ=$(echo $contra | sudo -k -S cpupower frequency-info -l 2>/dev/null | tail -1)
+MIN_FREQ=$(echo "$MAX_FREQ" | awk '{print $1}')
+MAX_FREQ=$(echo "$MAX_FREQ" | awk '{print $2}')
+
+
+    #EMPIEZA EL MAIN
+if (( $# == 0 )); then
+    help
+else
+    #Empieza el switch de opciones
+    case $1 in
+        "-l" ) #acabat el 10.08.2026
+            opcioL $@
+            ;;
+        "-f" ) #acabat el 13.08.2026
+            opcioF $@
+            ;;
+        "-c" ) #acabat el 10.08.2026
+            opcioC $@
+            ;;
+        "-d" ) #acabat el 12.08.2026
+            opcioD $@
+            ;;
+        "-dk" )#acabat el 12.08.2026
+            opcioDK $@
+            ;;
+        "-r" ) #acabat el 13.08.2026
+            #Primer tanca en segon plà
+            opcioDK $@
+            #Després restaura:
+            opcioR $@
+            ;;
+        * )
+            echo -e "\n\tEsta opció no existeix, prova de nou.\n"
+            ;;
+    esac
+fi
+
+
+
+# Frecuència fixa
+# sudo cpupower -c 0-7 frequency-set -f 1400000
