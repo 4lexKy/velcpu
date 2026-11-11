@@ -1,4 +1,4 @@
-[Versión 0.6.2]: #
+[Versión 0.7.2]: #
 # velcpu - Modificador automático y fijo de la velocidad de la CPU
 
 Este script echo en bash es un wrapper de cpupower para modificar la velocidad del procesador. Puede elegirse una frecuencia fija o optimizar el rendimiento para un techo máximo de temperatura.
@@ -7,6 +7,12 @@ Este script echo en bash es un wrapper de cpupower para modificar la velocidad d
 ## Estado del proyecto
 - Actualmente funciona sin problemas.
 - Quedan ideas para añadir y mejorar detalles.
+
+### Ficheros
+- velcpu: fichero del código principal
+- LICENSE: contenido de la licencia
+- README.md: información del proyecto
+- .gitignore: define elementos a ignorar
 
 ---
 ## Instalación
@@ -91,13 +97,14 @@ Probado en:
     velcpu -r          >> Deixa frec de fabrica
 
 ---
-
 ## Recomendación
 Para un uso mas ágil se puede crear una carpeta para script de forma que todos los que se añadan se puedan llamar desde la propia terminal como cualquier otro comando.
 
 Esto se puede conseguir añadiendo a ~/.bashrc la línea:
 
->export PATH=$PATH:/ruta/a/carpeta/con/scripts
+```bash
+    export PATH=$PATH:/ruta/a/carpeta/con/scripts
+```
 
 ---
 ## Licencia
@@ -105,5 +112,8 @@ Este proyecto está licenciado bajo GPLv2 - consulta el archivo LICENSE para má
 
 ---
 ## Autor
-    [Alex](github.com/4lexKy)
+>**Alex**
+- Github: [https://github.com/4lexKy](https://github.com/4lexKy)
+- Email: [alex.correu@pm.me](mailto:alex.correu@pm.me)
+
 ---
