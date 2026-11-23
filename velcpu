@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2026 Tu Nombre y colaboradores
+# Copyright 2026 Alex (alex.correu@pm.me)
 # SPDX-License-Identifier: GPL-2.0-only
 # Este programa es software libre: puedes redistribuirlo y/o modificarlo bajo los términos
 # de la Licencia Pública General GNU como publicada por la Free Software Foundation,
